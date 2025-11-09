@@ -2,92 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @layer base {
   html {
     font-family: 'Inter', system-ui, sans-serif;
-    scroll-behavior: smooth;
   }
   
   body {
-    @apply bg-gray-50;
+    @apply bg-white text-gray-800;
   }
 }
 
 @layer components {
-  .btn-primary {
-    @apply bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-purple-500/50 shadow-lg hover:shadow-xl;
+  .font-serif {
+    font-family: 'Playfair Display', serif;
   }
   
-  .btn-secondary {
-    @apply bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-lg hover:shadow-xl;
-  }
-  
-  .card {
-    @apply bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 backdrop-blur-sm bg-white/80;
-  }
-
-  .glass {
-    @apply bg-white/80 backdrop-blur-md border border-white/20;
+  .font-sans {
+    font-family: 'Inter', sans-serif;
   }
 }
 
-/* Animations personnalisées */
+@layer utilities {
+  .bg-gold-500 {
+    background-color: #d4af37;
+  }
+  
+  .bg-gold-600 {
+    background-color: #b8941f;
+  }
+  
+  .text-gold-600 {
+    color: #b8941f;
+  }
+  
+  .border-gold-300 {
+    border-color: #f4d03f;
+  }
+  
+  .border-gold-600 {
+    border-color: #b8941f;
+  }
+  
+  .hover\:text-gold-600:hover {
+    color: #b8941f;
+  }
+  
+  .hover\:border-gold-400:hover {
+    border-color: #d4af37;
+  }
+}
+
+/* Animations simplifiées */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-@keyframes bounceIn {
-  0% { transform: scale(0.3); opacity: 0; }
-  50% { transform: scale(1.05); }
-  70% { transform: scale(0.9); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
 .animate-fade-in {
   animation: fadeIn 0.6s ease-out;
-}
-
-.animate-slide-up {
-  animation: slideUp 0.4s ease-out;
-}
-
-.animate-bounce-in {
-  animation: bounceIn 0.6s ease-out;
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-/* Scrollbar personnalisée */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  @apply bg-gray-100;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-gradient-to-b from-purple-500 to-pink-500 rounded-full;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  @apply from-purple-600 to-pink-600;
-}
-
-/* Selection text */
-::selection {
-  @apply bg-purple-500/30 text-purple-700;
 }
