@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { VoteProvider } from './contexts/VoteContext.jsx'
 import { AuthProvider } from './contexts/AuthContext.jsx'
@@ -9,14 +9,9 @@ import Candidates from './pages/Candidates.jsx'
 import Vote from './pages/Vote.jsx'
 import Admin from './pages/Admin.jsx'
 import { Toaster } from 'react-hot-toast'
-import { initializeFirebaseData } from './utils/initFirebase'
 
 function App() {
-  useEffect(() => {
-    // Initialiser les données Firebase au démarrage
-    initializeFirebaseData()
-  }, [])
-
+  // AUCUN besoin d'initialisation - Supabase se connecte automatiquement
   return (
     <AuthProvider>
       <VoteProvider>
