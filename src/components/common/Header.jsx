@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useAuth } from '../../contexts/Authcontext'
+import { useAuth } from '../../contexts/AuthContext'
 
 const Header = () => {
   const location = useLocation()
