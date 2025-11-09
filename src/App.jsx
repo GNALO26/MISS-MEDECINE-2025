@@ -1,7 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { VoteProvider } from './contexts/VoteContext.jsx'
-import { AuthProvider } from './contexts/AuthContext.jsx'
+import { AuthProvider } from './contexts/Authcontext.jsx'
 import Header from './components/common/Header.jsx'
 import Footer from './components/common/Footer.jsx'
 import Home from './pages/Home.jsx'
