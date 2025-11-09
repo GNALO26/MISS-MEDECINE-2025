@@ -11,7 +11,7 @@ import Admin from './pages/Admin.jsx'
 import { Toaster } from 'react-hot-toast'
 
 function App() {
-  // AUCUN besoin d'initialisation - Supabase se connecte automatiquement
+  // AUCUN besoin d'initialisation - Supabase se connecte automatiquement et bien
   return (
     <AuthProvider>
       <VoteProvider>
