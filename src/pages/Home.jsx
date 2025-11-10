@@ -1,34 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useCandidates } from '../hooks/useCandidates';
+import { useVote } from '../contexts/VoteContext';
+import RealtimeIndicator from '../components/common/RealtimeIndicator';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const Home = () => {
-  const { candidates, loading } = useCandidates();
-  const [stats, setStats] = useState({
+  const { candidates, stats, lastUpdate, loading } = useVote();
+  const [localStats, setLocalStats] = useState({
     totalVotes: 0,
     missVotes: 0,
     misterVotes: 0,
     totalCandidates: 0
   });
 
+  // Mettre à jour les stats locales quand les stats globales changent
   useEffect(() => {
-    if (candidates.length > 0) {
-      const totalVotes = candidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
-      const missVotes = candidates
-        .filter(c => c.categorie === 'Miss')
-        .reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
-      const misterVotes = candidates
-        .filter(c => c.categorie === 'Mister')
-        .reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
-
-      setStats({
-        totalVotes,
-        missVotes,
-        misterVotes,
-        totalCandidates: candidates.length
-      });
+    if (stats) {
+      setLocalStats(stats);
     }
-  }, [candidates]);
+  }, [stats]);
 
   const featuredCandidates = candidates.slice(0, 4);
 
@@ -53,16 +43,19 @@ const Home = () => {
     }
   ];
 
-  if (loading) {
+  if (loading && candidates.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="loading-spinner"></div>
+      <div className="min-h-screen pt-20 flex items-center justify-center">
+        <LoadingSpinner size="large" text="Chargement des candidats..." />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Indicateur temps réel */}
+      <RealtimeIndicator />
+
       {/* Hero Section Élégante */}
       <section className="relative bg-gradient-to-br from-charcoal-900 via-charcoal-800 to-gold-900 text-white overflow-hidden">
         <div className="absolute inset-0 bg-black/40 z-10"></div>
@@ -100,52 +93,61 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Statistiques */}
+      {/* Statistiques avec animation de mise à jour */}
       <section className="py-20 bg-white">
         <div className="container-custom">
           <div className="text-center mb-16">
-            <h2 className="font-serif text-4xl md:text-5xl text-charcoal-900 mb-4">
-              Le Concours en Chiffres
-            </h2>
+            <div className="flex justify-center items-center space-x-4 mb-4">
+              <h2 className="font-serif text-4xl md:text-5xl text-charcoal-900">
+                Le Concours en Chiffres
+              </h2>
+              {lastUpdate && (
+                <div className="flex items-center space-x-2 text-sm text-gold-600 bg-gold-50 px-3 py-1 rounded-full">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span>En direct</span>
+                </div>
+              )}
+            </div>
             <p className="text-xl text-charcoal-600 max-w-2xl mx-auto">
-              Découvrez l'ampleur de cet événement prestigieux à travers les chiffres clés
+              Découvrez l'ampleur de cet événement prestigieux à travers les chiffres mis à jour en temps réel
             </p>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 max-w-5xl mx-auto">
-            <div className="text-center">
-              <div className="font-serif text-5xl md:text-6xl text-gold-600 mb-2">
-                {stats.totalCandidates}
-              </div>
-              <div className="font-sans text-charcoal-600 uppercase tracking-wider text-sm">
-                Candidats
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="font-serif text-5xl md:text-6xl text-gold-600 mb-2">
-                {stats.totalVotes.toLocaleString()}
-              </div>
-              <div className="font-sans text-charcoal-600 uppercase tracking-wider text-sm">
-                Votes Totaux
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="font-serif text-5xl md:text-6xl text-gold-600 mb-2">
-                {stats.missVotes.toLocaleString()}
-              </div>
-              <div className="font-sans text-charcoal-600 uppercase tracking-wider text-sm">
-                Votes Miss
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="font-serif text-5xl md:text-6xl text-gold-600 mb-2">
-                {stats.misterVotes.toLocaleString()}
-              </div>
-              <div className="font-sans text-charcoal-600 uppercase tracking-wider text-sm">
-                Votes Mister
-              </div>
-            </div>
+            <StatCard
+              value={localStats.totalCandidates}
+              label="Candidats"
+              icon="👥"
+              color="gold"
+            />
+            <StatCard
+              value={localStats.totalVotes.toLocaleString()}
+              label="Votes Totaux"
+              icon="🗳"
+              color="blue"
+            />
+            <StatCard
+              value={localStats.missVotes.toLocaleString()}
+              label="Votes Miss"
+              icon="👑"
+              color="pink"
+            />
+            <StatCard
+              value={localStats.misterVotes.toLocaleString()}
+              label="Votes Mister"
+              icon="🤵"
+              color="purple"
+            />
           </div>
+
+          {/* Dernière mise à jour */}
+          {lastUpdate && (
+            <div className="text-center mt-8">
+              <p className="text-charcoal-500 text-sm">
+                Dernière mise à jour : {lastUpdate.toLocaleTimeString('fr-FR')}
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -206,6 +208,13 @@ const Home = () => {
                   <div className="absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-gold-500 text-white">
                     {candidate.categorie}
                   </div>
+                  
+                  {/* Badge de votes en temps réel */}
+                  <div className="absolute bottom-4 left-4 z-10">
+                    <div className="bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm">
+                      {candidate.votes?.toLocaleString() || 0} votes
+                    </div>
+                  </div>
                 </div>
                 <div className="p-6 text-center">
                   <h3 className="font-serif text-xl text-charcoal-900 mb-2">{candidate.nom}</h3>
@@ -224,6 +233,12 @@ const Home = () => {
             ))}
           </div>
 
+          {featuredCandidates.length === 0 && !loading && (
+            <div className="text-center py-8">
+              <p className="text-charcoal-600">Aucun candidat disponible pour le moment.</p>
+            </div>
+          )}
+
           <div className="text-center mt-12">
             <Link to="/candidates" className="btn-secondary text-lg px-12 py-4">
               Voir Tous les Candidats
@@ -231,6 +246,74 @@ const Home = () => {
           </div>
         </div>
       </section>
+
+      {/* Section CTA Finale */}
+      <section className="py-20 bg-gradient-to-r from-gold-500 to-gold-600">
+        <div className="container-custom">
+          <div className="max-w-4xl mx-auto text-center text-white">
+            <h2 className="font-serif text-4xl md:text-5xl mb-6">
+              Prêt à élire votre favori ?
+            </h2>
+            <p className="text-xl text-gold-100 mb-8 leading-relaxed">
+              Rejoignez des centaines de personnes qui ont déjà soutenu leur candidat préféré. 
+              Chaque vote compte dans cette compétition prestigieuse.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link 
+                to="/vote" 
+                className="bg-white text-gold-600 hover:bg-gray-100 font-sans font-semibold py-4 px-12 rounded-lg transition-all duration-300 transform hover:scale-105"
+              >
+                Voter Maintenant
+              </Link>
+              <Link 
+                to="/candidates" 
+                className="border-2 border-white text-white hover:bg-white hover:text-gold-600 font-sans font-semibold py-4 px-12 rounded-lg transition-all duration-300 transform hover:scale-105"
+              >
+                Explorer les Candidats
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+// Composant de carte statistique avec animation
+const StatCard = ({ value, label, icon, color }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    setIsAnimating(true);
+    const timer = setTimeout(() => {
+      setDisplayValue(value);
+      setIsAnimating(false);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [value]);
+
+  const colorClasses = {
+    gold: 'text-gold-600 bg-gold-100',
+    blue: 'text-blue-600 bg-blue-100',
+    pink: 'text-pink-600 bg-pink-100',
+    purple: 'text-purple-600 bg-purple-100'
+  };
+
+  return (
+    <div className="text-center transform transition-all duration-500 hover:scale-105">
+      <div className={`w-20 h-20 ${colorClasses[color]} rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4 transition-all duration-300`}>
+        {icon}
+      </div>
+      <div className={`font-serif text-5xl md:text-6xl text-charcoal-900 mb-2 transition-all duration-500 ${
+        isAnimating ? 'animate-pulse scale-110' : ''
+      }`}>
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </div>
+      <div className="font-sans text-charcoal-600 uppercase tracking-wider text-sm">
+        {label}
+      </div>
     </div>
   );
 };

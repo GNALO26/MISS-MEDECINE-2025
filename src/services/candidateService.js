@@ -70,3 +70,72 @@ export const candidateService = {
     };
   }
 };
+
+// Abonnements en temps réel
+export const subscribeToCandidates = (callback) => {
+  console.log('🔔 Démarrage abonnement candidats temps réel...');
+  
+  const subscription = supabase
+    .channel('candidates-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*', // INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'candidates'
+      },
+      (payload) => {
+        console.log('🔄 Changement candidat détecté:', payload);
+        callback(payload);
+      }
+    )
+    .subscribe((status) => {
+      console.log('📡 Statut abonnement candidats:', status);
+    });
+
+  return subscription;
+};
+
+export const subscribeToVotes = (callback) => {
+  console.log('🔔 Démarrage abonnement votes temps réel...');
+  
+  const subscription = supabase
+    .channel('votes-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'votes'
+      },
+      (payload) => {
+        console.log('🔄 Changement vote détecté:', payload);
+        callback(payload);
+      }
+    )
+    .subscribe((status) => {
+      console.log('📡 Statut abonnement votes:', status);
+    });
+
+  return subscription;
+};
+
+// Fonction pour s'abonner aux mises à jour d'un candidat spécifique
+export const subscribeToCandidate = (candidateId, callback) => {
+  return supabase
+    .channel(`candidate-${candidateId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'candidates',
+        filter: `id=eq.${candidateId}`
+      },
+      (payload) => {
+        console.log(`🔄 Mise à jour candidat ${candidateId}:`, payload);
+        callback(payload);
+      }
+    )
+    .subscribe();
+};

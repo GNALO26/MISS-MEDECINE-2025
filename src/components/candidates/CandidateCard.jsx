@@ -1,13 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useVote } from '../../contexts/VoteContext';
+import ProgressBar from './ProgressBar';
 
 const CandidateCard = ({ candidate }) => {
-  const totalVotes = 1500; // À remplacer par les données réelles
-  const percentage = candidate.votes ? (candidate.votes / totalVotes) * 100 : 0;
+  const { stats, lastUpdate } = useVote();
+  const [localVotes, setLocalVotes] = useState(candidate.votes || 0);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Mettre à jour les votes locaux quand le candidat change
+  useEffect(() => {
+    setLocalVotes(candidate.votes || 0);
+  }, [candidate.votes]);
+
+  // Animation de mise à jour
+  useEffect(() => {
+    if (candidate.votes !== localVotes) {
+      setIsUpdating(true);
+      const timer = setTimeout(() => {
+        setLocalVotes(candidate.votes || 0);
+        setIsUpdating(false);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [candidate.votes, localVotes]);
+
+  const percentage = stats.totalVotes > 0 ? (localVotes / stats.totalVotes) * 100 : 0;
 
   return (
     <div className="card-elegant candidate-card overflow-hidden group">
-      {/* Image avec overlay */}
       <div className="relative overflow-hidden">
         <img
           src={candidate.photo}
@@ -15,9 +37,15 @@ const CandidateCard = ({ candidate }) => {
           className="responsive-image h-80 w-full group-hover:scale-110 transition-transform duration-500"
         />
         
-        {/* Overlay élégant */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        
+        {/* Badge de mise à jour en temps réel */}
+        {isUpdating && (
+          <div className="absolute top-4 left-4 z-10">
+            <div className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold animate-pulse">
+              🔄
+            </div>
+          </div>
+        )}
+
         {/* Badge catégorie */}
         <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
           candidate.categorie === 'Miss' 
@@ -27,12 +55,12 @@ const CandidateCard = ({ candidate }) => {
           {candidate.categorie}
         </div>
 
-        {/* Info overlay au hover */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-          <div className="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <p className="text-sm leading-relaxed line-clamp-2">
-              {candidate.description}
-            </p>
+        {/* Indicateur de votes en temps réel */}
+        <div className="absolute bottom-4 left-4 z-10">
+          <div className="bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm">
+            <span className={isUpdating ? 'animate-pulse' : ''}>
+              {localVotes.toLocaleString()} votes
+            </span>
           </div>
         </div>
       </div>
@@ -47,24 +75,27 @@ const CandidateCard = ({ candidate }) => {
           {candidate.description}
         </p>
 
-        {/* Barre de progression */}
+        {/* Barre de progression avec animation */}
         <div className="mb-4">
           <div className="flex justify-between text-xs text-charcoal-500 mb-2">
-            <span>{candidate.votes?.toLocaleString() || 0} votes</span>
-            <span>{percentage.toFixed(1)}%</span>
+            <span className={isUpdating ? 'animate-pulse font-bold' : ''}>
+              {localVotes.toLocaleString()} votes
+            </span>
+            <span className={isUpdating ? 'animate-pulse font-bold text-gold-600' : ''}>
+              {percentage.toFixed(1)}%
+            </span>
           </div>
-          <div className="progress-bar">
-            <div 
-              className="progress-fill"
-              style={{ width: `${percentage}%` }}
-            ></div>
-          </div>
+          <ProgressBar 
+            progress={percentage} 
+            height="h-3"
+            animate={true}
+          />
         </div>
 
         {/* Bouton voter */}
         <Link
           to={`/vote?candidate=${candidate.id}`}
-          className="btn-primary w-full text-center justify-center inline-flex items-center text-sm py-2.5"
+          className="btn-primary w-full text-center justify-center inline-flex items-center text-sm py-2.5 transform transition-transform duration-300 hover:scale-105"
         >
           <span>Voter pour {candidate.nom.split(' ')[0]}</span>
           <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

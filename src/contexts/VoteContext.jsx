@@ -1,102 +1,119 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
-import { candidateService, voteService } from '../services'
-import { usePayment } from '../hooks/usePayment'
-import { toast } from 'react-hot-toast'
+import { useState, useEffect, useCallback } from 'react';
+import { candidateService, subscribeToCandidates, subscribeToVotes } from '../services/candidateService';
 
-const VoteContext = createContext()
+export const useCandidates = () => {
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
 
-export const useVote = () => {
-  const context = useContext(VoteContext)
-  if (!context) {
-    throw new Error('useVote must be used within a VoteProvider')
-  }
-  return context
-}
-
-export const VoteProvider = ({ children }) => {
-  const [candidates, setCandidates] = useState({ femmes: [], hommes: [] })
-  const [votes, setVotes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const { processPayment, processing } = usePayment()
-
-  // Charger les candidats
-  const loadCandidates = async () => {
+  // Fonction pour charger les candidats
+  const loadCandidates = useCallback(async () => {
     try {
-      setLoading(true)
-      const data = await candidateService.getAllCandidates()
-      setCandidates(data)
-      setError(null)
+      setError(null);
+      const data = await candidateService.getAllCandidates();
+      setCandidates(data);
+      setLastUpdate(new Date());
+      console.log('✅ Candidats chargés:', data.length);
     } catch (err) {
-      console.error('Erreur chargement candidats:', err)
-      setError('Impossible de charger les candidats')
-      toast.error('Erreur de chargement des candidats')
+      setError(err.message);
+      console.error('❌ Erreur chargement candidats:', err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  }, []);
 
-  // Écouter les changements en temps réel
   useEffect(() => {
-    loadCandidates()
+    let candidatesSubscription;
+    let votesSubscription;
 
-    const subscription = candidateService.subscribeToCandidates((payload) => {
-      console.log('Changement détecté:', payload)
-      loadCandidates() // Recharger les données
-    })
+    const initializeRealtime = async () => {
+      try {
+        // Chargement initial
+        await loadCandidates();
 
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
+        // Abonnement aux changements des candidats
+        candidatesSubscription = subscribeToCandidates(async (payload) => {
+          console.log('🔄 Mise à jour temps réel - Candidats:', payload);
+          await loadCandidates(); // Recharger les données
+        });
 
-  // Gérer un vote
-  const handleVote = async (candidate, voteCount) => {
-    try {
-      const paymentResult = await processPayment(candidate, voteCount)
-      
-      if (paymentResult.success) {
-        // Mettre à jour les votes du candidat
-        await candidateService.updateCandidateVotes(candidate.id, voteCount)
-        
-        // Enregistrer la transaction
-        await voteService.recordVote({
-          candidateId: candidate.id,
-          candidateName: candidate.nom,
-          voteCount: voteCount,
-          amount: voteCount * 100,
-          paymentData: paymentResult.data,
-          transactionId: paymentResult.data.transactionId
-        })
-        
-        toast.success(`${voteCount} votes ajoutés pour ${candidate.nom}!`)
+        // Abonnement aux changements des votes
+        votesSubscription = subscribeToVotes(async (payload) => {
+          console.log('🔄 Mise à jour temps réel - Votes:', payload);
+          await loadCandidates(); // Recharger les données
+        });
+
+        console.log('🎯 Abonnements temps réel activés');
+      } catch (err) {
+        console.error('❌ Erreur initialisation temps réel:', err);
+        setError('Erreur de connexion temps réel');
       }
-    } catch (error) {
-      console.error('Erreur lors du vote:', error)
-      toast.error('Erreur lors du traitement du vote')
+    };
+
+    initializeRealtime();
+
+    // Nettoyage des abonnements
+    return () => {
+      console.log('🧹 Nettoyage des abonnements temps réel');
+      if (candidatesSubscription) {
+        candidatesSubscription.unsubscribe();
+      }
+      if (votesSubscription) {
+        votesSubscription.unsubscribe();
+      }
+    };
+  }, [loadCandidates]);
+
+  // Fonction pour forcer le rechargement
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    await loadCandidates();
+  }, [loadCandidates]);
+
+  // Fonction pour mettre à jour les votes d'un candidat
+  const updateCandidateVotes = async (candidateId, additionalVotes) => {
+    try {
+      await candidateService.updateCandidateVotes(candidateId, additionalVotes);
+      // La mise à jour temps réel se chargera du rechargement
+    } catch (err) {
+      setError(err.message);
+      throw err;
     }
-  }
+  };
 
-  // Calculer les totaux
-  const totalVotesFemmes = candidates.femmes.reduce((sum, candidate) => sum + candidate.votes, 0)
-  const totalVotesHommes = candidates.hommes.reduce((sum, candidate) => sum + candidate.votes, 0)
-  const totalVotes = totalVotesFemmes + totalVotesHommes
+  // Fonction pour obtenir un candidat par ID
+  const getCandidateById = (id) => {
+    return candidates.find(candidate => candidate.id === id);
+  };
 
-  const value = {
+  // Fonction pour filtrer par catégorie
+  const getCandidatesByCategory = (category) => {
+    if (category === 'all') return candidates;
+    return candidates.filter(candidate => candidate.categorie === category);
+  };
+
+  // Calcul des statistiques en temps réel
+  const stats = {
+    totalVotes: candidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0),
+    missVotes: candidates
+      .filter(c => c.categorie === 'Miss')
+      .reduce((sum, candidate) => sum + (candidate.votes || 0), 0),
+    misterVotes: candidates
+      .filter(c => c.categorie === 'Mister')
+      .reduce((sum, candidate) => sum + (candidate.votes || 0), 0),
+    totalCandidates: candidates.length
+  };
+
+  return {
     candidates,
-    votes,
-    totalVotes,
-    totalVotesFemmes,
-    totalVotesHommes,
-    handleVote,
-    loading: loading || processing,
+    loading,
     error,
-    refreshCandidates: loadCandidates
-  }
-
-  return (
-    <VoteContext.Provider value={value}>
-      {children}
-    </VoteContext.Provider>
-  )
-}
+    lastUpdate,
+    stats,
+    updateCandidateVotes,
+    getCandidateById,
+    getCandidatesByCategory,
+    refetch
+  };
+};
