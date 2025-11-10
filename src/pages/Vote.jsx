@@ -1,185 +1,323 @@
-import React, { useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { useVote } from '../contexts/VoteContext'
-import PaymentModal from '../components/payment/PaymentModal'
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useCandidates } from '../hooks/useCandidates';
+import { usePayment } from '../hooks/usePayment';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const Vote = () => {
-  const location = useLocation()
-  const { candidates } = useVote()
-  const [selectedCandidate, setSelectedCandidate] = useState(null)
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
-  const [voteCount, setVoteCount] = useState(0)
-  const [selectedCategory, setSelectedCategory] = useState('tous')
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { candidates, loading } = useCandidates();
+  const { processPayment, loading: paymentLoading } = usePayment();
+  
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [voteCount, setVoteCount] = useState(1);
+  const [step, setStep] = useState(1); // 1: Sélection, 2: Confirmation
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  const preselectedCandidate = location.state?.candidate
+  const pricePerVote = 100;
+  const totalAmount = voteCount * pricePerVote;
 
-  const filteredCandidates = selectedCategory === 'tous' 
-    ? [...candidates.femmes, ...candidates.hommes]
-    : selectedCategory === 'femmes' 
-      ? candidates.femmes 
-      : candidates.hommes
-
-  const handleVoteClick = (candidate) => {
-    if (voteCount <= 0) {
-      alert('Veuillez entrer un nombre de votes valide (minimum 1)')
-      return
+  // Pré-sélectionner le candidat depuis l'URL
+  useEffect(() => {
+    const candidateId = searchParams.get('candidate');
+    if (candidateId && candidates.length > 0) {
+      const candidate = candidates.find(c => c.id === parseInt(candidateId));
+      if (candidate) {
+        setSelectedCandidate(candidate);
+        setStep(2);
+      }
     }
-    setSelectedCandidate(candidate)
-    setIsPaymentModalOpen(true)
-  }
+  }, [searchParams, candidates]);
 
-  const handleVoteCountChange = (e) => {
-    const value = parseInt(e.target.value) || 0
-    setVoteCount(Math.max(0, value))
-  }
+  const handleCandidateSelect = (candidate) => {
+    setSelectedCandidate(candidate);
+    setStep(2);
+    // Scroll vers la section confirmation
+    setTimeout(() => {
+      document.getElementById('confirmation-section')?.scrollIntoView({ 
+        behavior: 'smooth' 
+      });
+    }, 100);
+  };
 
-  const categories = [
-    { value: 'tous', label: 'Tous les Candidats', count: candidates.femmes.length + candidates.hommes.length },
-    { value: 'femmes', label: 'Candidates Miss', count: candidates.femmes.length },
-    { value: 'hommes', label: 'Candidates Mister', count: candidates.hommes.length },
-  ]
+  const handleVoteCountChange = (value) => {
+    const count = parseInt(value) || 1;
+    setVoteCount(Math.max(1, Math.min(1000, count))); // Limite entre 1 et 1000 votes
+  };
+
+  const handlePayment = async () => {
+    if (!selectedCandidate) return;
+
+    const success = await processPayment({
+      candidateId: selectedCandidate.id,
+      candidateName: selectedCandidate.nom,
+      voteCount: voteCount,
+      amount: totalAmount
+    });
+
+    if (success) {
+      navigate('/success', { 
+        state: { 
+          candidate: selectedCandidate, 
+          voteCount: voteCount,
+          amount: totalAmount
+        } 
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-24">
-      <div className="container py-12">
-        {/* En-tête */}
-        <div className="text-center mb-12">
-          <h1 className="section-title">Votez pour votre Favori</h1>
-          <p className="font-sans text-xl text-gray-600 max-w-2xl mx-auto">
-            Chaque vote compte ! Soutenez votre candidat préféré et aidez-le à remporter cette élection prestigieuse.
-          </p>
+    <div className="min-h-screen bg-gray-50 pt-20">
+      {/* En-tête */}
+      <section className="bg-white py-16 border-b border-gray-100">
+        <div className="container-custom">
+          <div className="text-center max-w-3xl mx-auto">
+            <h1 className="font-serif text-4xl md:text-5xl text-charcoal-900 mb-4">
+              Voter pour votre favori
+            </h1>
+            <p className="text-xl text-charcoal-600">
+              Soutenez votre candidat préféré avec vos votes. Chaque vote compte !
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="container-custom py-16">
+        {/* Indicateur d'étapes */}
+        <div className="max-w-2xl mx-auto mb-12">
+          <div className="flex items-center justify-between">
+            <div className={`flex flex-col items-center ${step >= 1 ? 'text-gold-600' : 'text-gray-400'}`}>
+              <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center mb-2 ${
+                step >= 1 ? 'border-gold-600 bg-gold-50' : 'border-gray-300'
+              }`}>
+                <span className="font-sans font-semibold">1</span>
+              </div>
+              <span className="font-sans text-sm font-medium">Choisir un candidat</span>
+            </div>
+            
+            <div className={`flex-1 h-1 mx-4 ${step >= 2 ? 'bg-gold-600' : 'bg-gray-300'}`}></div>
+            
+            <div className={`flex flex-col items-center ${step >= 2 ? 'text-gold-600' : 'text-gray-400'}`}>
+              <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center mb-2 ${
+                step >= 2 ? 'border-gold-600 bg-gold-50' : 'border-gray-300'
+              }`}>
+                <span className="font-sans font-semibold">2</span>
+              </div>
+              <span className="font-sans text-sm font-medium">Confirmer le vote</span>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Sélecteur de votes */}
-            <div className="card p-6">
-              <h3 className="font-serif text-xl font-bold text-gray-800 mb-4">
-                Nombre de Votes
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block font-sans text-sm font-medium text-gray-700 mb-2">
-                    Entrez le nombre de votes
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={voteCount}
-                    onChange={handleVoteCountChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded focus:ring-2 focus:ring-gold-500 focus:border-gold-500 transition-all duration-300 text-center font-sans text-lg font-bold"
-                    placeholder="0"
-                  />
-                </div>
-                <div className="text-center">
-                  <p className="font-sans text-2xl font-bold text-gold-600">
-                    {voteCount * 100} FCFA
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {voteCount} vote(s) × 100 FCFA
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Filtres */}
-            <div className="card p-6">
-              <h3 className="font-serif text-xl font-bold text-gray-800 mb-4">
-                Filtrer par Catégorie
-              </h3>
-              <div className="space-y-2">
-                {categories.map((category) => (
-                  <button
-                    key={category.value}
-                    onClick={() => setSelectedCategory(category.value)}
-                    className={`w-full text-left p-3 transition-all duration-300 border-l-4 ${
-                      selectedCategory === category.value
-                        ? 'bg-gold-50 border-gold-500 text-gold-700'
-                        : 'border-transparent text-gray-700 hover:bg-gray-50'
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-7xl mx-auto">
+          {/* Sélection du candidat */}
+          <div className={`${step === 1 ? 'block' : 'hidden lg:block'}`}>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+              <h2 className="font-serif text-3xl text-charcoal-900 mb-6">
+                Sélectionnez un candidat
+              </h2>
+              
+              <div className="space-y-4 max-h-96 overflow-y-auto pr-4 scrollbar-hide">
+                {candidates.map((candidate) => (
+                  <div
+                    key={candidate.id}
+                    onClick={() => handleCandidateSelect(candidate)}
+                    className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-300 ${
+                      selectedCandidate?.id === candidate.id
+                        ? 'border-gold-500 bg-gold-50 shadow-md'
+                        : 'border-gray-200 hover:border-gold-300 hover:shadow-sm'
                     }`}
                   >
-                    <div className="flex justify-between items-center">
-                      <span className="font-sans">{category.label}</span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        selectedCategory === category.value
-                          ? 'bg-gold-500 text-white'
-                          : 'bg-gray-200 text-gray-600'
-                      }`}>
-                        {category.count}
-                      </span>
+                    <div className="flex items-center space-x-4">
+                      <img
+                        src={candidate.photo}
+                        alt={candidate.nom}
+                        className="w-16 h-16 rounded-full object-cover"
+                      />
+                      <div className="flex-1">
+                        <h3 className="font-serif text-lg text-charcoal-900">
+                          {candidate.nom}
+                        </h3>
+                        <p className="text-charcoal-600 text-sm line-clamp-1">
+                          {candidate.description}
+                        </p>
+                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold mt-2 ${
+                          candidate.categorie === 'Miss' 
+                            ? 'bg-pink-100 text-pink-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {candidate.categorie}
+                        </div>
+                      </div>
+                      <svg 
+                        className={`w-6 h-6 transition-colors duration-300 ${
+                          selectedCandidate?.id === candidate.id ? 'text-gold-600' : 'text-gray-400'
+                        }`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Grille des candidats */}
-          <div className="lg:col-span-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredCandidates.map((candidate, index) => (
-                <div key={candidate.id} className="card overflow-hidden group">
-                  <div className="relative overflow-hidden">
+          {/* Confirmation du vote */}
+          <div 
+            id="confirmation-section"
+            className={`${step === 2 ? 'block' : 'hidden lg:block'}`}
+          >
+            {selectedCandidate && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sticky top-8">
+                <h2 className="font-serif text-3xl text-charcoal-900 mb-6">
+                  Confirmer votre vote
+                </h2>
+
+                {/* Candidat sélectionné */}
+                <div className="bg-gold-50 rounded-xl p-6 mb-8 border border-gold-200">
+                  <div className="flex items-center space-x-4">
                     <img
-                      src={candidate.photo}
-                      alt={candidate.nom}
-                      className="w-full h-80 object-cover group-hover:scale-105 transition-transform duration-500"
+                      src={selectedCandidate.photo}
+                      alt={selectedCandidate.nom}
+                      className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md"
                     />
-                    <div className="absolute top-4 right-4">
-                      <span className={`px-3 py-1 text-xs font-sans font-bold text-white ${
-                        candidate.categorie === 'femmes' ? 'bg-pink-500' : 'bg-blue-500'
+                    <div>
+                      <h3 className="font-serif text-2xl text-charcoal-900">
+                        {selectedCandidate.nom}
+                      </h3>
+                      <p className="text-charcoal-600">
+                        {selectedCandidate.description}
+                      </p>
+                      <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold mt-2 ${
+                        selectedCandidate.categorie === 'Miss' 
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-blue-500 text-white'
                       }`}>
-                        {candidate.categorie === 'femmes' ? 'MISS' : 'MISTER'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-6">
-                    <h3 className="font-serif text-xl font-bold text-gray-800 mb-2 text-center">
-                      {candidate.nom}
-                    </h3>
-                    <p className="font-sans text-gray-600 text-center mb-4 leading-relaxed">
-                      {candidate.description}
-                    </p>
-                    
-                    <div className="text-center mb-4">
-                      <div className="font-sans text-sm text-gray-500 mb-1">
-                        Votes actuels
-                      </div>
-                      <div className="font-serif text-2xl font-bold text-gold-600">
-                        {candidate.votes.toLocaleString()}
+                        {selectedCandidate.categorie}
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => handleVoteClick(candidate)}
-                      disabled={voteCount <= 0}
-                      className={`w-full py-3 font-sans font-bold transition-all duration-300 uppercase tracking-wider text-sm ${
-                        voteCount <= 0
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'btn-primary'
-                      }`}
-                    >
-                      Voter pour {candidate.nom.split(' ')[0]}
-                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Sélection du nombre de votes */}
+                <div className="mb-8">
+                  <label className="block font-sans font-semibold text-charcoal-900 mb-4 text-lg">
+                    Nombre de votes souhaités
+                  </label>
+                  <div className="flex items-center space-x-4">
+                    <button
+                      onClick={() => handleVoteCountChange(voteCount - 1)}
+                      disabled={voteCount <= 1}
+                      className="w-12 h-12 rounded-full border-2 border-gold-500 text-gold-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gold-500 hover:text-white transition-all duration-300"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                      </svg>
+                    </button>
+                    
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        min="1"
+                        max="1000"
+                        value={voteCount}
+                        onChange={(e) => handleVoteCountChange(e.target.value)}
+                        className="w-full px-4 py-4 text-center text-2xl font-bold border-2 border-gold-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-500 focus:ring-opacity-50"
+                      />
+                    </div>
+                    
+                    <button
+                      onClick={() => handleVoteCountChange(voteCount + 1)}
+                      disabled={voteCount >= 1000}
+                      className="w-12 h-12 rounded-full border-2 border-gold-500 text-gold-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gold-500 hover:text-white transition-all duration-300"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p className="text-center text-charcoal-500 mt-2">
+                    Minimum 1 vote, maximum 1000 votes
+                  </p>
+                </div>
+
+                {/* Résumé du paiement */}
+                <div className="bg-gray-50 rounded-xl p-6 mb-8">
+                  <h4 className="font-sans font-semibold text-charcoal-900 mb-4 text-lg">
+                    Récapitulatif
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-charcoal-600">
+                      <span>Nombre de votes</span>
+                      <span className="font-semibold">{voteCount} vote{voteCount > 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="flex justify-between text-charcoal-600">
+                      <span>Prix par vote</span>
+                      <span className="font-semibold">{pricePerVote} FCFA</span>
+                    </div>
+                    <div className="border-t border-gray-300 pt-3 flex justify-between text-lg font-bold text-charcoal-900">
+                      <span>Total à payer</span>
+                      <span className="text-gold-600">{totalAmount.toLocaleString()} FCFA</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bouton de paiement */}
+                <button
+                  onClick={handlePayment}
+                  disabled={paymentLoading}
+                  className="w-full btn-primary text-lg py-4 flex items-center justify-center"
+                >
+                  {paymentLoading ? (
+                    <>
+                      <LoadingSpinner />
+                      <span className="ml-2">Traitement en cours...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Payer {totalAmount.toLocaleString()} FCFA</span>
+                      <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+
+                {/* Information de sécurité */}
+                <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-start space-x-3">
+                    <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <div>
+                      <p className="text-green-800 text-sm font-medium">
+                        Paiement 100% sécurisé
+                      </p>
+                      <p className="text-green-700 text-xs">
+                        Vos informations de paiement sont cryptées et protégées
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Modal de paiement */}
-      <PaymentModal
-        candidate={selectedCandidate}
-        voteCount={voteCount}
-        isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
-      />
     </div>
-  )
-}
+  );
+};
 
-export default Vote
+export default Vote;

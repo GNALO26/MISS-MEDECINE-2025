@@ -1,4 +1,4 @@
-import { supabase } from '../utils/supabase'
+import { supabase } from '../utils/supabase';
 
 export const candidateService = {
   // Récupérer tous les candidats
@@ -6,15 +6,13 @@ export const candidateService = {
     const { data, error } = await supabase
       .from('candidates')
       .select('*')
-      .order('votes', { ascending: false })
-    
-    if (error) throw error
-    
-    // Séparer par catégorie
-    const femmes = data.filter(c => c.categorie === 'femmes')
-    const hommes = data.filter(c => c.categorie === 'hommes')
-    
-    return { femmes, hommes }
+      .order('votes', { ascending: false });
+
+    if (error) {
+      throw new Error(`Erreur lors de la récupération des candidats: ${error.message}`);
+    }
+
+    return data || [];
   },
 
   // Récupérer un candidat par ID
@@ -23,37 +21,52 @@ export const candidateService = {
       .from('candidates')
       .select('*')
       .eq('id', id)
-      .single()
-    
-    if (error) throw error
-    return data
+      .single();
+
+    if (error) {
+      throw new Error(`Erreur lors de la récupération du candidat: ${error.message}`);
+    }
+
+    return data;
   },
 
   // Mettre à jour les votes d'un candidat
   async updateCandidateVotes(candidateId, additionalVotes) {
-    const candidate = await this.getCandidateById(candidateId)
-    
-    const { data, error } = await supabase
-      .from('candidates')
-      .update({ 
-        votes: candidate.votes + additionalVotes,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', candidateId)
-      .select()
-    
-    if (error) throw error
-    return data[0]
+    const { data, error } = await supabase.rpc('increment_votes', {
+      candidate_id: candidateId,
+      vote_increment: additionalVotes
+    });
+
+    if (error) {
+      throw new Error(`Erreur lors de la mise à jour des votes: ${error.message}`);
+    }
+
+    return data;
   },
 
-  // Écouter les changements en temps réel
-  subscribeToCandidates(callback) {
-    return supabase
-      .channel('candidates-changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'candidates' },
-        callback
-      )
-      .subscribe()
+  // Récupérer les statistiques globales
+  async getVoteStats() {
+    const { data, error } = await supabase
+      .from('candidates')
+      .select('categorie, votes');
+
+    if (error) {
+      throw new Error(`Erreur lors de la récupération des stats: ${error.message}`);
+    }
+
+    const totalVotes = data.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+    const missVotes = data
+      .filter(c => c.categorie === 'Miss')
+      .reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+    const misterVotes = data
+      .filter(c => c.categorie === 'Mister')
+      .reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+
+    return {
+      totalVotes,
+      missVotes,
+      misterVotes,
+      totalCandidates: data.length
+    };
   }
-}
+};

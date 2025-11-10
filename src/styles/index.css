@@ -1,63 +1,96 @@
-@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Great+Vibes&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  html {
-    font-family: 'Inter', sans-serif;
-    scroll-behavior: smooth;
-  }
-  
-  body {
-    @apply bg-white text-gray-800 antialiased;
-  }
-}
-
-@layer components {
-  .container {
-    @apply max-w-7xl mx-auto;
-  }
-  
-  .btn-primary {
-    @apply bg-gold-500 hover:bg-gold-600 text-white font-sans font-semibold py-4 px-8 
-           transition-all duration-300 uppercase tracking-wider text-sm border-2 border-gold-400;
-  }
-  
-  .btn-secondary {
-    @apply bg-transparent border-2 border-gold-500 text-gold-500 hover:bg-gold-500 hover:text-white 
-           font-sans font-semibold py-4 px-8 transition-all duration-300 uppercase tracking-wider text-sm;
-  }
-  
-  .section-title {
-    @apply font-serif text-4xl md:text-5xl text-center text-gray-800 mb-8;
-  }
-  
-  .card {
-    @apply bg-white shadow-lg border border-gray-200 transition-all duration-300 hover:shadow-xl;
-  }
-}
-
-/* Reset et base */
+/* Styles de base */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* Layout principal */
-.main-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+html {
+  scroll-behavior: smooth;
 }
 
-/* Header fixe */
-.header-fixed {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #F8F8F8;
+  color: #1A1A1A;
+  line-height: 1.6;
+}
+
+/* Container centré */
+.container-custom {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Styles pour les cartes élégantes */
+.card-elegant {
+  @apply bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300;
+}
+
+/* Bouton principal */
+.btn-primary {
+  @apply bg-gold-500 hover:bg-gold-600 text-white font-sans font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:ring-opacity-50;
+}
+
+.btn-secondary {
+  @apply border-2 border-gold-500 text-gold-500 hover:bg-gold-500 hover:text-white font-sans font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-500 focus:ring-opacity-50;
+}
+
+/* Barre de progression */
+.progress-bar {
+  @apply w-full bg-gray-200 rounded-full h-2 overflow-hidden;
+}
+
+.progress-fill {
+  @apply h-full bg-gradient-to-r from-gold-400 to-gold-600 rounded-full transition-all duration-500 ease-out;
+}
+
+/* Animation pour les cartes candidates */
+.candidate-card {
+  @apply transform transition-all duration-300 hover:scale-105 hover:shadow-xl;
+}
+
+/* Header fixe avec fond transparent */
+.header-transparent {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+/* Typographie spéciale */
+.typography-elegant {
+  font-family: 'Playfair Display', serif;
+}
+
+.typography-cursive {
+  font-family: 'Great Vibes', cursive;
+}
+
+/* Overlay pour images */
+.image-overlay {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.7) 100%);
+}
+
+/* Chargement */
+.loading-spinner {
+  @apply w-8 h-8 border-4 border-gold-200 border-t-gold-500 rounded-full animate-spin;
+}
+
+/* Responsive images */
+.responsive-image {
+  @apply w-full h-full object-cover object-center;
+}
+
+/* Masquer la barre de défilement mais permettre le scroll */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
