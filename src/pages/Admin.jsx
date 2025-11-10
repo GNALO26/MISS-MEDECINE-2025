@@ -1,245 +1,401 @@
-import React, { useState } from 'react'
-import { motion } from 'framer-motion'
-import { useAuth } from '../contexts/AuthContext'
-import { useVote } from '../contexts/VoteContext'
-import { CONTEST_DATES } from '../utils/constants'
+import React, { useState, useEffect } from 'react';
+import { adminService } from '../services/adminService';
+import { candidateService } from '../services/candidateService';
+import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const Admin = () => {
-  const { isAdmin, login, user } = useAuth()
-  const { candidates, votes, totalVotes, totalVotesFemmes, totalVotesHommes } = useVote()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [activeTab, setActiveTab] = useState('statistiques')
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(null);
+  const [voteHistory, setVoteHistory] = useState([]);
+  const [candidates, setCandidates] = useState([]);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
 
-  const handleLogin = (e) => {
-    e.preventDefault()
-    if (!login(username, password)) {
-      alert('Identifiants incorrects')
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      if (token) {
+        const isValid = await adminService.verifyToken(token);
+        setIsAuthenticated(isValid);
+        if (isValid) {
+          loadDashboardData();
+        }
+      }
+    } catch (error) {
+      console.error('Erreur de vérification:', error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const loadDashboardData = async () => {
+    try {
+      const [statsData, historyData, candidatesData] = await Promise.all([
+        adminService.getDashboardStats(),
+        adminService.getVoteHistory(),
+        candidateService.getAllCandidates()
+      ]);
+      
+      setStats(statsData);
+      setVoteHistory(historyData);
+      setCandidates(candidatesData);
+    } catch (error) {
+      console.error('Erreur chargement données:', error);
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      const token = await adminService.login(loginForm.email, loginForm.password);
+      if (token) {
+        localStorage.setItem('admin_token', token);
+        setIsAuthenticated(true);
+        await loadDashboardData();
+      }
+    } catch (error) {
+      alert('Erreur de connexion: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    setIsAuthenticated(false);
+    setStats(null);
+    setVoteHistory([]);
+    setCandidates([]);
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'XOF'
+    }).format(amount);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
   }
 
-  if (!isAdmin) {
+  if (!isAuthenticated) {
     return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-md mx-auto bg-white rounded-2xl p-8 shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-            Connexion Administration
-          </h2>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nom d'utilisateur
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
-              />
+      <div className="min-h-screen bg-gray-50 pt-20">
+        <div className="container-custom py-16">
+          <div className="max-w-md mx-auto">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+              <div className="text-center mb-8">
+                <h1 className="font-serif text-3xl text-charcoal-900 mb-2">
+                  Administration
+                </h1>
+                <p className="text-charcoal-600">
+                  Connectez-vous pour accéder au tableau de bord
+                </p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div>
+                  <label className="block font-sans font-semibold text-charcoal-900 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={loginForm.email}
+                    onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent transition-all duration-300"
+                    placeholder="admin@fss-medecine.bj"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-sans font-semibold text-charcoal-900 mb-2">
+                    Mot de passe
+                  </label>
+                  <input
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent transition-all duration-300"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full btn-primary py-3 flex items-center justify-center"
+                >
+                  {loading ? <LoadingSpinner /> : 'Se connecter'}
+                </button>
+              </form>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mot de passe
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full btn-primary"
-            >
-              Se connecter
-            </button>
-          </form>
+          </div>
         </div>
       </div>
-    )
+    );
   }
 
-  const allCandidates = [...candidates.femmes, ...candidates.hommes]
-  const sortedCandidates = [...allCandidates].sort((a, b) => b.votes - a.votes)
-
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50 pt-20">
       {/* En-tête Admin */}
-      <motion.div
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">
-              Tableau de Bord Administrateur
-            </h1>
-            <p className="text-gray-600">
-              Connecté en tant que <strong>{user?.username}</strong>
-            </p>
+      <div className="bg-white border-b border-gray-200">
+        <div className="container-custom">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between py-6">
+            <div>
+              <h1 className="font-serif text-3xl text-charcoal-900 mb-2">
+                Tableau de Bord Admin
+              </h1>
+              <p className="text-charcoal-600">
+                Gestion du concours Miss & Mister FSS Médecine 2025
+              </p>
+            </div>
+            
+            <button
+              onClick={handleLogout}
+              className="mt-4 md:mt-0 px-6 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors duration-300 font-sans font-medium"
+            >
+              Déconnexion
+            </button>
           </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-primary">
-              {totalVotes.toLocaleString()} votes
-            </p>
-            <p className="text-gray-600">Total des votes</p>
-          </div>
-        </div>
-      </motion.div>
 
-      {/* Navigation par onglets */}
-      <div className="mb-8">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+          {/* Navigation onglets */}
+          <div className="flex space-x-8 -mb-px">
             {[
-              { id: 'statistiques', label: 'Statistiques' },
-              { id: 'candidats', label: 'Classement Candidats' },
-              { id: 'transactions', label: 'Transactions' }
+              { id: 'dashboard', name: 'Tableau de Bord' },
+              { id: 'candidates', name: 'Gestion Candidats' },
+              { id: 'transactions', name: 'Historique Votes' }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                className={`py-4 px-1 border-b-2 font-sans font-medium text-sm transition-colors duration-300 ${
                   activeTab === tab.id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-gold-500 text-gold-600'
+                    : 'border-transparent text-charcoal-500 hover:text-charcoal-700 hover:border-gray-300'
                 }`}
               >
-                {tab.label}
+                {tab.name}
               </button>
             ))}
-          </nav>
+          </div>
         </div>
       </div>
 
-      {/* Contenu des onglets */}
-      <motion.div
-        key={activeTab}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      >
-        {activeTab === 'statistiques' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {/* Cartes de statistiques */}
-            {[
-              { label: 'Total Votes', value: totalVotes, color: 'bg-blue-500' },
-              { label: 'Votes Miss', value: totalVotesFemmes, color: 'bg-pink-500' },
-              { label: 'Votes Mister', value: totalVotesHommes, color: 'bg-indigo-500' },
-              { label: 'Recettes Totales', value: totalVotes * 100, color: 'bg-green-500', suffix: ' FCFA' }
-            ].map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-xl p-6 shadow-lg"
-              >
-                <div className="flex items-center">
-                  <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center mr-4`}>
-                    <span className="text-white text-2xl">📊</span>
-                  </div>
+      <div className="container-custom py-8">
+        {/* Tableau de Bord */}
+        {activeTab === 'dashboard' && stats && (
+          <div className="space-y-8">
+            {/* Cartes statistiques */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">{stat.label}</p>
-                    <p className="text-2xl font-bold text-gray-800">
-                      {stat.value.toLocaleString()}{stat.suffix || ''}
+                    <p className="text-charcoal-500 text-sm font-medium mb-1">Revenu Total</p>
+                    <p className="font-serif text-3xl text-charcoal-900">
+                      {formatCurrency(stats.totalRevenue)}
                     </p>
                   </div>
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl">💰</span>
+                  </div>
                 </div>
-              </motion.div>
-            ))}
+                <p className="text-green-600 text-sm font-medium mt-2">
+                  {stats.totalVotes} votes au total
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-charcoal-500 text-sm font-medium mb-1">Transactions</p>
+                    <p className="font-serif text-3xl text-charcoal-900">
+                      {stats.totalTransactions}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl">📊</span>
+                  </div>
+                </div>
+                <p className="text-blue-600 text-sm font-medium mt-2">
+                  Paiements réussis
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-charcoal-500 text-sm font-medium mb-1">Candidats Miss</p>
+                    <p className="font-serif text-3xl text-charcoal-900">
+                      {stats.missCount}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl">👑</span>
+                  </div>
+                </div>
+                <p className="text-pink-600 text-sm font-medium mt-2">
+                  {stats.missVotes} votes
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-charcoal-500 text-sm font-medium mb-1">Candidats Mister</p>
+                    <p className="font-serif text-3xl text-charcoal-900">
+                      {stats.misterCount}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl">🤵</span>
+                  </div>
+                </div>
+                <p className="text-purple-600 text-sm font-medium mt-2">
+                  {stats.misterVotes} votes
+                </p>
+              </div>
+            </div>
+
+            {/* Candidats leaders */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="font-serif text-2xl text-charcoal-900 mb-6">Classement des Candidats</h2>
+              <div className="space-y-4">
+                {candidates
+                  .sort((a, b) => (b.votes || 0) - (a.votes || 0))
+                  .slice(0, 5)
+                  .map((candidate, index) => (
+                    <div key={candidate.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-gold-100 rounded-full flex items-center justify-center text-gold-600 font-bold">
+                          {index + 1}
+                        </div>
+                        <img
+                          src={candidate.photo}
+                          alt={candidate.nom}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                        <div>
+                          <h3 className="font-sans font-semibold text-charcoal-900">
+                            {candidate.nom}
+                          </h3>
+                          <p className="text-charcoal-500 text-sm">
+                            {candidate.categorie}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-sans font-bold text-charcoal-900 text-lg">
+                          {candidate.votes?.toLocaleString() || 0}
+                        </p>
+                        <p className="text-charcoal-500 text-sm">votes</p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
         )}
 
-        {activeTab === 'candidats' && (
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        {/* Gestion des Candidats */}
+        {activeTab === 'candidates' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Classement des Candidats
-              </h3>
+              <h2 className="font-serif text-2xl text-charcoal-900">Gestion des Candidats</h2>
             </div>
+            
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Position
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
                       Candidat
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
                       Catégorie
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
                       Votes
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
                       Pourcentage
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {sortedCandidates.map((candidate, index) => {
-                    const percentage = totalVotes > 0 ? (candidate.votes / totalVotes) * 100 : 0
+                <tbody className="divide-y divide-gray-200">
+                  {candidates.map((candidate) => {
+                    const totalVotes = candidates.reduce((sum, c) => sum + (c.votes || 0), 0);
+                    const percentage = totalVotes > 0 ? ((candidate.votes || 0) / totalVotes) * 100 : 0;
+                    
                     return (
-                      <tr key={candidate.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <span className={`w-8 h-8 flex items-center justify-center rounded-full ${
-                              index === 0 ? 'bg-yellow-100 text-yellow-800' :
-                              index === 1 ? 'bg-gray-100 text-gray-800' :
-                              index === 2 ? 'bg-orange-100 text-orange-800' :
-                              'bg-blue-100 text-blue-800'
-                            } font-bold`}>
-                              {index + 1}
-                            </span>
-                          </div>
-                        </td>
+                      <tr key={candidate.id} className="hover:bg-gray-50 transition-colors duration-300">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <img
                               src={candidate.photo}
                               alt={candidate.nom}
-                              className="w-10 h-10 rounded-full mr-3"
+                              className="w-10 h-10 rounded-full object-cover mr-3"
                             />
                             <div>
-                              <div className="text-sm font-medium text-gray-900">
+                              <div className="font-sans font-medium text-charcoal-900">
                                 {candidate.nom}
+                              </div>
+                              <div className="text-charcoal-500 text-sm line-clamp-1 max-w-xs">
+                                {candidate.description}
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            candidate.categorie === 'femmes' 
-                              ? 'bg-pink-100 text-pink-800' 
+                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
+                            candidate.categorie === 'Miss' 
+                              ? 'bg-pink-100 text-pink-800'
                               : 'bg-blue-100 text-blue-800'
                           }`}>
-                            {candidate.categorie === 'femmes' ? 'Miss' : 'Mister'}
+                            {candidate.categorie}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {candidate.votes.toLocaleString()}
+                        <td className="px-6 py-4 whitespace-nowrap font-sans font-semibold text-charcoal-900">
+                          {candidate.votes?.toLocaleString() || 0}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-24 bg-gray-200 rounded-full h-2 mr-2">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-24 bg-gray-200 rounded-full h-2">
                               <div
-                                className="bg-primary h-2 rounded-full"
+                                className="bg-gold-500 h-2 rounded-full transition-all duration-500"
                                 style={{ width: `${percentage}%` }}
                               ></div>
                             </div>
-                            <span className="text-sm text-gray-600">
+                            <span className="text-charcoal-600 text-sm font-medium w-12">
                               {percentage.toFixed(1)}%
                             </span>
                           </div>
                         </td>
                       </tr>
-                    )
+                    );
                   })}
                 </tbody>
               </table>
@@ -247,88 +403,87 @@ const Admin = () => {
           </div>
         )}
 
+        {/* Historique des Transactions */}
         {activeTab === 'transactions' && (
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Historique des Transactions
-              </h3>
+              <h2 className="font-serif text-2xl text-charcoal-900">Historique des Votes</h2>
             </div>
+            
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
                       Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
                       Candidat
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Nombre de votes
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
+                      Votes
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
                       Montant
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-charcoal-500 uppercase tracking-wider">
                       Statut
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {votes.slice().reverse().map((vote) => (
-                    <tr key={vote.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(vote.timestamp).toLocaleDateString('fr-FR')}
+                <tbody className="divide-y divide-gray-200">
+                  {voteHistory.map((transaction) => (
+                    <tr key={transaction.id} className="hover:bg-gray-50 transition-colors duration-300">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-charcoal-600">
+                        {formatDate(transaction.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {allCandidates.find(c => c.id === vote.candidateId)?.nom || 'N/A'}
+                        <div className="flex items-center">
+                          <img
+                            src={transaction.candidates?.photo}
+                            alt={transaction.candidates?.nom}
+                            className="w-8 h-8 rounded-full object-cover mr-2"
+                          />
+                          <span className="font-sans font-medium text-charcoal-900">
+                            {transaction.candidates?.nom}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {vote.voteCount}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-sans font-semibold text-charcoal-900">
+                        {transaction.vote_count} vote{transaction.vote_count > 1 ? 's' : ''}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {vote.amount.toLocaleString()} FCFA
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-sans font-semibold text-gold-600">
+                        {formatCurrency(transaction.amount)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                          Payé
+                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
+                          transaction.status === 'completed' 
+                            ? 'bg-green-100 text-green-800'
+                            : transaction.status === 'pending'? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {transaction.status === 'completed' ? 'Complété' : 
+                           transaction.status === 'pending' ? 'En attente' : 'Échoué'}
                         </span>
                       </td>
                     </tr>
                   ))}
-                  {votes.length === 0 && (
-                    <tr>
-                      <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
-                        Aucune transaction pour le moment
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
+
+            {voteHistory.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">📊</div>
+                <h3 className="font-serif text-xl text-charcoal-900 mb-2">Aucune transaction</h3>
+                <p className="text-charcoal-600">Aucun vote n'a encore été enregistré.</p>
+              </div>
+            )}
           </div>
         )}
-      </motion.div>
-
-      {/* Informations sur les dates */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="mt-8 bg-yellow-50 border border-yellow-200 rounded-xl p-6"
-      >
-        <h4 className="text-lg font-semibold text-yellow-800 mb-2">
-          Informations importantes
-        </h4>
-        <p className="text-yellow-700">
-          Les résultats seront cachés au public à partir du {new Date(CONTEST_DATES.resultsHiddenAfter).toLocaleDateString('fr-FR')}
-        </p>
-      </motion.div>
+      </div>
     </div>
-  )
-}
+  );
+};
 
-export default Admin
+export default Admin;

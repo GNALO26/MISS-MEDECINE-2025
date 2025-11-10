@@ -1,117 +1,179 @@
-import React from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useVote } from '../../contexts/VoteContext'
-import { VOTE_PRICE } from '../../utils/constants'
-import LoadingSpinner from '../common/LoadingSpinner'
+import React, { useState, useEffect } from 'react';
+import LoadingSpinner from '../common/LoadingSpinner';
 
-const PaymentModal = ({ candidate, voteCount, isOpen, onClose }) => {
-  const { handleVote, loading } = useVote()
+const PaymentModal = ({ 
+  isOpen, 
+  onClose, 
+  paymentData,
+  onSuccess,
+  onError 
+}) => {
+  const [paymentStatus, setPaymentStatus] = useState('initial'); // initial, processing, success, error
+  const [errorMessage, setErrorMessage] = useState('');
 
-  if (!isOpen || !candidate) return null
-
-  const totalAmount = voteCount * VOTE_PRICE
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (voteCount > 0) {
-      await handleVote(candidate, voteCount)
-      onClose()
+  useEffect(() => {
+    if (isOpen) {
+      setPaymentStatus('initial');
+      setErrorMessage('');
+      initializePayment();
     }
-  }
+  }, [isOpen]);
 
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.8, opacity: 0 }}
-          className="bg-white rounded-lg w-full max-w-md overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* En-tête */}
-          <div className="bg-gold-500 p-6 text-white">
-            <h2 className="font-serif text-2xl font-bold text-center">
-              Confirmer votre vote
-            </h2>
+  const initializePayment = async () => {
+    if (!window.Kkiapay) {
+      setPaymentStatus('error');
+      setErrorMessage('Service de paiement non disponible');
+      return;
+    }
+
+    try {
+      setPaymentStatus('processing');
+      
+      window.Kkiapay.init({
+        key: import.meta.env.VITE_KKIAPAY_PUBLIC_KEY,
+        amount: paymentData.amount,
+        transaction_id: paymentData.transactionId,
+        name: `Votes pour ${paymentData.candidateName}`,
+        callback: async (response) => {
+          if (response.status === 'SUCCESS') {
+            setPaymentStatus('success');
+            
+            // Attendre un peu pour montrer le succès
+            setTimeout(() => {
+              onSuccess(response);
+              onClose();
+            }, 2000);
+          } else {
+            setPaymentStatus('error');
+            setErrorMessage('Paiement échoué. Veuillez réessayer.');
+          }
+        },
+        onClose: () => {
+          if (paymentStatus === 'initial' || paymentStatus === 'processing') {
+            setPaymentStatus('error');
+            setErrorMessage('Paiement annulé');
+          }
+        }
+      });
+    } catch (error) {
+      setPaymentStatus('error');
+      setErrorMessage('Erreur d\'initialisation du paiement');
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const getModalContent = () => {
+    switch (paymentStatus) {
+      case 'initial':
+      case 'processing':
+        return (
+          <div className="text-center py-8">
+            <LoadingSpinner size="large" text="Initialisation du paiement..." />
           </div>
+        );
 
-          {/* Contenu */}
-          <div className="p-6">
-            <div className="flex items-center space-x-4 mb-6">
-              <img
-                src={candidate.photo}
-                alt={candidate.nom}
-                className="w-20 h-20 object-cover rounded-full border-4 border-gold-200"
-              />
-              <div>
-                <h3 className="font-serif text-xl font-bold text-gray-800">
-                  {candidate.nom}
-                </h3>
-                <p className="font-sans text-gray-600 text-sm">
-                  {candidate.categorie === 'femmes' ? 'Candidate Miss' : 'Candidate Mister'}
-                </p>
-              </div>
+      case 'success':
+        return (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
             </div>
+            <h3 className="font-serif text-2xl text-charcoal-900 mb-2">
+              Paiement Réussi !
+            </h3>
+            <p className="text-charcoal-600">
+              Votre vote a été enregistré avec succès.
+            </p>
+          </div>
+        );
 
-            {/* Détails du vote */}
-            <div className="bg-gray-50 p-4 rounded-lg mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-sans text-gray-600">Nombre de votes:</span>
-                <span className="font-sans font-bold text-gray-800">{voteCount}</span>
-              </div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-sans text-gray-600">Prix par vote:</span>
-                <span className="font-sans font-bold text-gray-800">100 FCFA</span>
-              </div>
-              <div className="flex justify-between items-center border-t border-gray-200 pt-2">
-                <span className="font-sans text-lg font-bold text-gray-800">Total:</span>
-                <span className="font-serif text-xl font-bold text-gold-600">
-                  {totalAmount.toLocaleString()} FCFA
-                </span>
-              </div>
+      case 'error':
+        return (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </div>
-
-            {/* Boutons d'action */}
+            <h3 className="font-serif text-2xl text-charcoal-900 mb-2">
+              Paiement Échoué
+            </h3>
+            <p className="text-charcoal-600 mb-6">
+              {errorMessage}
+            </p>
             <div className="flex space-x-4">
               <button
                 onClick={onClose}
-                className="flex-1 bg-gray-300 text-gray-700 py-3 px-6 font-sans font-bold transition-all duration-300 hover:bg-gray-400"
+                className="flex-1 px-6 py-3 border border-gray-300 text-charcoal-700 rounded-lg hover:bg-gray-50 transition-colors duration-300"
               >
-                Annuler
+                Fermer
               </button>
               <button
-                onClick={handleSubmit}
-                disabled={loading || voteCount <= 0}
-                className="flex-1 btn-elegant flex items-center justify-center space-x-2 disabled:opacity-50"
+                onClick={initializePayment}
+                className="flex-1 btn-primary"
               >
-                {loading ? (
-                  <>
-                    <LoadingSpinner size="small" />
-                    <span>Traitement...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Payer avec KkiaPay</span>
-                  </>
-                )}
+                Réessayer
               </button>
             </div>
-
-            <p className="text-center text-xs text-gray-500 mt-4">
-              Vous serez redirigé vers KkiaPay pour finaliser le paiement
-            </p>
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  )
-}
+        );
 
-export default PaymentModal
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Overlay */}
+      <div 
+        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+        onClick={onClose}
+      ></div>
+
+      {/* Modal */}
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full mx-auto transform transition-all">
+          {/* En-tête */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif text-xl text-charcoal-900">
+                Paiement sécurisé
+              </h2>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-300"
+              >
+                <svg className="w-5 h-5 text-charcoal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Contenu */}
+          <div className="px-6">
+            {getModalContent()}
+          </div>
+
+          {/* Pied de page informatif */}
+          {(paymentStatus === 'initial' || paymentStatus === 'processing') && (
+            <div className="px-6 py-4 bg-gray-50 rounded-b-2xl border-t border-gray-200">
+              <div className="flex items-center space-x-3 text-sm text-charcoal-600">
+                <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span>Paiement 100% sécurisé via KkiaPay</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PaymentModal;
