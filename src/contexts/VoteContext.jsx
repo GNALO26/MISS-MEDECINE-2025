@@ -1,111 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import { candidateService, subscribeToCandidates, subscribeToVotes } from '../services/candidateService';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useCandidates } from '../hooks/useCandidates';
 
-export const useCandidates = () => {
-  const [candidates, setCandidates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
+const VoteContext = createContext();
 
-  // Fonction pour charger les candidats
-  const loadCandidates = useCallback(async () => {
-    try {
-      setError(null);
-      const data = await candidateService.getAllCandidates();
-      setCandidates(data);
-      setLastUpdate(new Date());
-      console.log('✅ Candidats chargés:', data.length);
-    } catch (err) {
-      setError(err.message);
-      console.error('❌ Erreur chargement candidats:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+// Hook personnalisé pour utiliser le contexte
+export const useVote = () => {
+  const context = useContext(VoteContext);
+  if (!context) {
+    throw new Error('useVote doit être utilisé dans un VoteProvider');
+  }
+  return context;
+};
 
-  useEffect(() => {
-    let candidatesSubscription;
-    let votesSubscription;
-
-    const initializeRealtime = async () => {
-      try {
-        // Chargement initial
-        await loadCandidates();
-
-        // Abonnement aux changements des candidats
-        candidatesSubscription = subscribeToCandidates(async (payload) => {
-          console.log('🔄 Mise à jour temps réel - Candidats:', payload);
-          await loadCandidates(); // Recharger les données
-        });
-
-        // Abonnement aux changements des votes
-        votesSubscription = subscribeToVotes(async (payload) => {
-          console.log('🔄 Mise à jour temps réel - Votes:', payload);
-          await loadCandidates(); // Recharger les données
-        });
-
-        console.log('🎯 Abonnements temps réel activés');
-      } catch (err) {
-        console.error('❌ Erreur initialisation temps réel:', err);
-        setError('Erreur de connexion temps réel');
-      }
-    };
-
-    initializeRealtime();
-
-    // Nettoyage des abonnements
-    return () => {
-      console.log('🧹 Nettoyage des abonnements temps réel');
-      if (candidatesSubscription) {
-        candidatesSubscription.unsubscribe();
-      }
-      if (votesSubscription) {
-        votesSubscription.unsubscribe();
-      }
-    };
-  }, [loadCandidates]);
-
-  // Fonction pour forcer le rechargement
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    await loadCandidates();
-  }, [loadCandidates]);
-
-  // Fonction pour mettre à jour les votes d'un candidat
-  const updateCandidateVotes = async (candidateId, additionalVotes) => {
-    try {
-      await candidateService.updateCandidateVotes(candidateId, additionalVotes);
-      // La mise à jour temps réel se chargera du rechargement
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    }
-  };
-
-  // Fonction pour obtenir un candidat par ID
-  const getCandidateById = (id) => {
-    return candidates.find(candidate => candidate.id === id);
-  };
-
-  // Fonction pour filtrer par catégorie
-  const getCandidatesByCategory = (category) => {
-    if (category === 'all') return candidates;
-    return candidates.filter(candidate => candidate.categorie === category);
-  };
-
-  // Calcul des statistiques en temps réel
-  const stats = {
-    totalVotes: candidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0),
-    missVotes: candidates
-      .filter(c => c.categorie === 'Miss')
-      .reduce((sum, candidate) => sum + (candidate.votes || 0), 0),
-    misterVotes: candidates
-      .filter(c => c.categorie === 'Mister')
-      .reduce((sum, candidate) => sum + (candidate.votes || 0), 0),
-    totalCandidates: candidates.length
-  };
-
-  return {
+export const VoteProvider = ({ children }) => {
+  const {
     candidates,
     loading,
     error,
@@ -115,5 +23,69 @@ export const useCandidates = () => {
     getCandidateById,
     getCandidatesByCategory,
     refetch
+  } = useCandidates();
+
+  const [realtimeEnabled, setRealtimeEnabled] = useState(true);
+  const [updateCount, setUpdateCount] = useState(0);
+
+  // Effet pour compter les mises à jour (débogage)
+  useEffect(() => {
+    if (lastUpdate) {
+      setUpdateCount(prev => prev + 1);
+      console.log(`🔄 Mise à jour #${updateCount + 1} à ${lastUpdate.toLocaleTimeString()}`);
+    }
+  }, [lastUpdate]);
+
+  // Fonction pour voter
+  const voteForCandidate = async (candidateId, voteCount) => {
+    try {
+      await updateCandidateVotes(candidateId, voteCount);
+      console.log(`✅ ${voteCount} vote(s) ajouté(s) au candidat ${candidateId}`);
+      return true;
+    } catch (error) {
+      console.error('❌ Erreur lors du vote:', error);
+      throw error;
+    }
   };
+
+  // Fonction pour obtenir le classement
+  const getRanking = () => {
+    return [...candidates].sort((a, b) => (b.votes || 0) - (a.votes || 0));
+  };
+
+  // Fonction pour obtenir les leaders
+  const getLeaders = (limit = 3) => {
+    return getRanking().slice(0, limit);
+  };
+
+  const value = {
+    // Données
+    candidates,
+    loading,
+    error,
+    lastUpdate,
+    stats,
+    updateCount,
+    
+    // Fonctions
+    voteForCandidate,
+    getCandidateById,
+    getCandidatesByCategory,
+    getRanking,
+    getLeaders,
+    refetch,
+    
+    // Contrôles temps réel
+    realtimeEnabled,
+    setRealtimeEnabled
+  };
+
+  return (
+    <VoteContext.Provider value={value}>
+      {children}
+    </VoteContext.Provider>
+  );
 };
+
+// Export par défaut pour le provider
+export default VoteProvider;
